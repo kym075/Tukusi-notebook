@@ -134,15 +134,11 @@ class NotesMixin:
         for note in filtered_notes:
             note_id = note["id"]
             title = self.note_display_title(note)
-            
-            color_key = "default"
-            content = note.get("content", [])
-            if isinstance(content, list) and len(content) > 0:
-                color_key = content[0].get("color", "default")
-            
+            color_key = self.note_text_color_key(note)
+
             font_color_config = FONT_COLORS.get(color_key, FONT_COLORS["default"])
             card_text_color = font_color_config[mode]
-            
+
             if self.current_note_id == note_id:
                 bg_color = "#3a3a3a" if mode == "dark" else "#d0d0d0"
             else:
@@ -151,7 +147,7 @@ class NotesMixin:
                     card_text_color = "#888888" if mode == "dark" else "#555555"
 
             note_card = ctk.CTkButton(
-                self.notes_scrollable, 
+                self.notes_scrollable,
                 text=f"{title}\n🕒 更新: {note.get('updated_at', '')[:16]}",
                 anchor="w",
                 font=app_font(size=13),
@@ -168,12 +164,18 @@ class NotesMixin:
 
         self.apply_app_fonts(self.notes_scrollable)
 
-    def note_card_colors(self, note):
-        mode = ctk.get_appearance_mode().lower()
-        color_key = "default"
+    def note_text_color_key(self, note):
+        """ノート一覧に表示する文字色を決定する。title_color があれば優先し、なければ本文先頭の色を使う。"""
+        if "title_color" in note:
+            return note["title_color"]
         content = note.get("content", [])
         if isinstance(content, list) and len(content) > 0:
-            color_key = content[0].get("color", "default")
+            return content[0].get("color", "default")
+        return "default"
+
+    def note_card_colors(self, note):
+        mode = ctk.get_appearance_mode().lower()
+        color_key = self.note_text_color_key(note)
 
         card_text_color = FONT_COLORS.get(color_key, FONT_COLORS["default"])[mode]
 
@@ -225,7 +227,10 @@ class NotesMixin:
         self.save_current_note_immediately()
 
         self.current_note_id = note_id
-        
+        self.keep_typing_color_var.set(False)
+        self.color_target = "body"
+        self.update_color_target_label()
+
         note_data = next((n for n in self.data["notes"] if n["id"] == note_id), None)
         if not note_data:
             return
@@ -237,6 +242,7 @@ class NotesMixin:
         self.title_entry.delete(0, "end")
         self.title_entry.insert(0, note_data["title"])
         self.title_entry.xview_moveto(0)
+        self.apply_title_color(note_data.get("title_color", "default"))
 
         # 新規入力の標準装飾は、既存ノートの先頭スタイルに引っ張られないよう固定する
         content_data = note_data.get("content", [])
@@ -270,16 +276,6 @@ class NotesMixin:
 
         # リストハイライト更新
         self.refresh_notes_list()
-
-    def apply_note_font_color(self, color_key):
-        """現在のアクティブなノートに設定された文字色をエディタに適用する"""
-        mode = ctk.get_appearance_mode().lower()
-        default_text_hex = FONT_COLORS["default"][mode]
-        cursor_color_config = FONT_COLORS.get(color_key, FONT_COLORS["default"])
-        cursor_hex = cursor_color_config[mode]
-        self.editor.configure(text_color=default_text_hex)
-        self.title_entry.configure(text_color=cursor_hex)
-        self.editor._textbox.configure(insertbackground=cursor_hex)
 
     # ------------------------------------------
     # 自動保存 ＆ 削除
@@ -321,6 +317,8 @@ class NotesMixin:
             note_data["title"] = new_title
             note_data["content"] = self.get_rich_content_spans()
             note_data["updated_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if "title_color" not in note_data:
+                note_data["title_color"] = "default"
             save_data(self.data)
             return {"title_changed": title_changed}
 
@@ -413,6 +411,7 @@ class NotesMixin:
         new_note = {
             "id": new_id,
             "title": "",
+            "title_color": "default",
             "content": [{"text": "", "color": "default", "size": DEFAULT_FONT_SIZE, "bold": False, "underline": False}],
             "category": initial_cat,
             "created_at": now,

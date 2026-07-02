@@ -58,6 +58,7 @@ class NotebookApp(UpdateMixin, EditorMixin, NotesMixin, SettingsMixin, ctk.CTk):
         self.temporary_typing_color_line = None
         self.temporary_typing_style_line = None
         self.keep_typing_color_var = tk.BooleanVar(value=False)
+        self.color_target = "body"            # "body" or "title"：色ボタンの適用先
 
         # ウィンドウの基本設定
         self.title("つくしノート")
@@ -287,8 +288,8 @@ class NotebookApp(UpdateMixin, EditorMixin, NotesMixin, SettingsMixin, ctk.CTk):
 
         ctk.CTkLabel(toolbar, text=" | ", font=app_font(size=12), text_color="gray50").pack(side="left", padx=8)
 
-        color_label = ctk.CTkLabel(toolbar, text="文字色:", font=app_font(size=12), text_color=("#333333", "#e0e0e0"))
-        color_label.pack(side="left", padx=5)
+        self.color_label = ctk.CTkLabel(toolbar, text="文字色(本文):", font=app_font(size=12), text_color=("#333333", "#e0e0e0"))
+        self.color_label.pack(side="left", padx=5)
 
         self.color_buttons = {}
         for key, name in [(color_key, config["name"]) for color_key, config in FONT_COLORS.items()]:
@@ -328,6 +329,7 @@ class NotebookApp(UpdateMixin, EditorMixin, NotesMixin, SettingsMixin, ctk.CTk):
         )
         self.title_entry.grid(row=0, column=0, sticky="ew", padx=(0, 10))
         self.title_entry.bind("<KeyRelease>", self.trigger_auto_save)
+        self.title_entry._entry.bind("<FocusIn>", self.on_title_focus_in, add="+")
 
         delete_note_btn = ctk.CTkButton(title_row, text="🗑 削除", width=70, font=app_font(size=13), fg_color="#c0392b", hover_color="#962d22", command=self.delete_current_note)
         delete_note_btn.grid(row=0, column=1, sticky="e")
@@ -361,6 +363,7 @@ class NotebookApp(UpdateMixin, EditorMixin, NotesMixin, SettingsMixin, ctk.CTk):
         self.editor.bind("<Shift-Return>", self.on_return_pressed, add="+")
         self.editor.bind("<Down>", self.on_down_pressed, add="+")
         self.editor._textbox.bind("<FocusIn>", lambda _event: self.sync_editor_input_style(), add="+")
+        self.editor._textbox.bind("<FocusIn>", self.on_editor_focus_in, add="+")
         self.editor._textbox.bind("<ButtonRelease-1>", self.move_insert_out_of_image_marker, add="+")
         self.editor._textbox.bind("<KeyRelease>", self.move_insert_out_of_image_marker, add="+")
         self.editor._textbox.bind("<ButtonRelease-1>", self.reset_temporary_color_on_cursor_move, add="+")

@@ -75,6 +75,35 @@ class EditorMixin:
         self.editor._textbox.configure(insertbackground=cursor_hex)
         self.sync_windows_ime_font(weight)
 
+    def on_title_focus_in(self, _event=None):
+        """タイトル入力欄にフォーカスが移ったら、色ボタンの適用先をタイトルにする。"""
+        self.color_target = "title"
+        self.update_color_target_label()
+        self.update_color_swatch_buttons()
+
+    def on_editor_focus_in(self, _event=None):
+        """本文エディタにフォーカスが移ったら、色ボタンの適用先を本文に戻す。"""
+        self.color_target = "body"
+        self.update_color_target_label()
+        self.update_color_swatch_buttons()
+
+    def apply_title_color(self, color_key):
+        """タイトル入力欄の文字色を指定した色に変更する。"""
+        if not hasattr(self, "title_entry"):
+            return
+        mode = ctk.get_appearance_mode().lower()
+        color_config = FONT_COLORS.get(color_key, FONT_COLORS["default"])
+        self.title_entry.configure(text_color=color_config[mode])
+
+    def update_color_target_label(self):
+        """色ボタンの対象（タイトル／本文）をラベルに表示する。"""
+        if not hasattr(self, "color_label"):
+            return
+        if getattr(self, "color_target", "body") == "title":
+            self.color_label.configure(text="文字色(タイトル):")
+        else:
+            self.color_label.configure(text="文字色(本文):")
+
     def sync_editor_cursor_color(self):
         mode = ctk.get_appearance_mode().lower()
         color_config = FONT_COLORS.get(self.active_typing_color, FONT_COLORS["default"])
@@ -132,7 +161,11 @@ class EditorMixin:
     def update_color_swatch_buttons(self):
         if not hasattr(self, "color_buttons"):
             return
-        active_color_key = getattr(self, "active_typing_color", "default")
+        if getattr(self, "color_target", "body") == "title" and self.current_note_id:
+            note_data = next((n for n in self.data["notes"] if n["id"] == self.current_note_id), None)
+            active_color_key = note_data.get("title_color", "default") if note_data else "default"
+        else:
+            active_color_key = getattr(self, "active_typing_color", "default")
         dark_mode = ctk.get_appearance_mode().lower() == "dark"
         for color_key, button in self.color_buttons.items():
             color = self.color_swatch_color(color_key)
@@ -1670,6 +1703,10 @@ class EditorMixin:
         self.reset_temporary_color_on_cursor_move()
 
     def change_typing_color(self, color_key):
+        if getattr(self, "color_target", "body") == "title":
+            self.change_title_color(color_key)
+            return
+
         if self.apply_text_style_to_selected_ranges(color=color_key):
             return
 
@@ -1683,6 +1720,20 @@ class EditorMixin:
         self.sync_editor_cursor_color()
         after_state = self.capture_active_typing_state()
         self.record_style_history([], [], before_state, after_state)
+
+    def change_title_color(self, color_key):
+        """タイトルの色を変更し、ノート一覧にも即座に反映する。"""
+        if not self.current_note_id:
+            return
+        note_data = next((n for n in self.data["notes"] if n["id"] == self.current_note_id), None)
+        if not note_data:
+            return
+
+        note_data["title_color"] = color_key
+        self.apply_title_color(color_key)
+        self.save_current_note_immediately()
+        self.update_note_card(self.current_note_id)
+        self.update_color_swatch_buttons()
 
     def toggle_typing_bold(self):
         before_state = self.capture_active_typing_state()
@@ -1730,7 +1781,7 @@ class EditorMixin:
         if self.current_note_id:
             note_data = next((n for n in self.data["notes"] if n["id"] == self.current_note_id), None)
             if note_data:
-                self.apply_note_font_color(note_data.get("color", "default"))
+                self.apply_title_color(note_data.get("title_color", "default"))
 
         self.sync_editor_input_style()
                 

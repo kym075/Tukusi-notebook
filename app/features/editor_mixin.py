@@ -281,15 +281,18 @@ class EditorMixin:
             self.active_typing_underline = False
             self.block_style_var.set(DEFAULT_BLOCK_STYLE_LABEL)
             self.update_style_buttons()
+            self.update_color_swatch_buttons()
             self.sync_editor_input_style()
             return
 
-        _, size, bold, underline = self.get_text_style_at(probe_index)
+        color, size, bold, underline = self.get_text_style_at(probe_index)
         self.block_style_var.set(self.block_style_label_for(size, bold))
+        self.active_typing_color = color
         self.active_typing_size = size
         self.active_typing_bold = bold
         self.active_typing_underline = underline
         self.update_style_buttons()
+        self.update_color_swatch_buttons()
         self.sync_editor_input_style()
 
     def is_control_pressed(self, event):
@@ -347,7 +350,7 @@ class EditorMixin:
         self.remember_temporary_color_line()
 
     def reset_temporary_color_on_cursor_move(self, _event=None):
-        self.after_idle(self.apply_temporary_typing_reset_if_needed)
+        self.apply_temporary_typing_reset_if_needed()
         return None
 
     def apply_temporary_typing_reset_if_needed(self):
@@ -738,6 +741,7 @@ class EditorMixin:
         self.active_typing_underline = bool(state.get("underline", False))
         self.update_block_style_label()
         self.update_style_buttons()
+        self.update_color_swatch_buttons()
         self.sync_editor_input_style()
 
     def normalized_text_ranges(self, ranges):
@@ -1707,9 +1711,6 @@ class EditorMixin:
             self.change_title_color(color_key)
             return
 
-        if self.apply_text_style_to_selected_ranges(color=color_key):
-            return
-
         before_state = self.capture_active_typing_state()
         self.active_typing_color = color_key
         self.update_color_swatch_buttons()
@@ -1718,6 +1719,10 @@ class EditorMixin:
         else:
             self.remember_temporary_color_line()
         self.sync_editor_cursor_color()
+
+        if self.apply_text_style_to_selected_ranges(before_state=before_state, color=color_key):
+            return
+
         after_state = self.capture_active_typing_state()
         self.record_style_history([], [], before_state, after_state)
 
